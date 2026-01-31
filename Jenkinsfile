@@ -5,7 +5,7 @@ pipeline {
         // Conjur configuration
         CONJUR_URL = 'https://conjursecrets:8443'  // REPLACE with your Conjur URL
         CONJUR_ACCOUNT = 'myConjurAccount'                    // REPLACE with your account
-        CONJUR_LOGIN = 'host/jenkins-hosts/debian-jenkins'          // REPLACE with your host login
+        CONJUR_LOGIN = 'host%2Fjenkins-hosts%2Fdebian-jenkins'          // REPLACE with your host login
         
         // Secret paths in Conjur
         AWS_ACCESS_KEY_PATH = 'jenkins-app/aws/access-key-id'
@@ -27,7 +27,6 @@ pipeline {
                 script {
                     echo 'Authenticating to Conjur...'
                     withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
-                        def encodedLogin = CONJUR_LOGIN.replace('/', '%2F')
                         def authResponse = httpRequest(
                             url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${CONJUR_LOGIN}/authenticate",
                             httpMode: 'POST',

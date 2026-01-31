@@ -27,6 +27,7 @@ pipeline {
                 script {
                     echo 'Authenticating to Conjur...'
                     withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
+                        def encodedLogin = CONJUR_LOGIN.replace('/', '%2F')
                         def authResponse = httpRequest(
                             url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${CONJUR_LOGIN}/authenticate",
                             httpMode: 'POST',

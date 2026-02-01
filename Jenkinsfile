@@ -22,103 +22,94 @@ pipeline {
             }
         }
         
-        stage('Authenticate to Conjur') {
-            steps {
-                script {
-                    echo 'Authenticating to Conjur...'
-                    withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
-        		// URL encode the login (host/jenkins-prod becomes host%2Fjenkins-prod)
-                	def encodedLogin = CONJUR_LOGIN.replace('/', '%2F')
-                
-                	echo "Using URL: ${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate"
-                
-                        def authResponse = httpRequest(
-                            url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate",
-                            httpMode: 'POST',
-                            contentType: 'TEXT_PLAIN',
-                            requestBody: API_KEY,
-                            validResponseCodes: '200',
-                            ignoreSslErrors: true
-                        )
-                        env.CONJUR_TOKEN = authResponse.content
-                        echo 'Successfully authenticated to Conjur ✓'
-                    }
-                }
-            }
-        }
-        
-        stage('Debug Token') {
+stage('Authenticate to Conjur') {
     steps {
         script {
-            echo "=== Token Debug Info ==="
-            echo "Token length: ${env.CONJUR_TOKEN.length()}"
-            echo "Token preview: ${env.CONJUR_TOKEN.take(100)}"
-            
-            // Check if it's JSON
-            if (env.CONJUR_TOKEN.startsWith('{')) {
-                echo "WARNING: Token is in JSON format!"
+            echo 'Authenticating to Conjur...'
+            withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
+                def encodedLogin = CONJUR_LOGIN.replace('/', '%2F')
+                
+                echo "Using URL: ${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate"
+                
+                def authResponse = httpRequest(
+                    url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate",
+                    httpMode: 'POST',
+                    contentType: 'TEXT_PLAIN',
+                    customHeaders: [[
+                        name: 'Accept-Encoding',
+                        value: 'base64'  // Request base64 token instead of JSON
+                    ]],
+                    requestBody: API_KEY,
+                    validResponseCodes: '200',
+                    ignoreSslErrors: true
+                )
+                env.CONJUR_TOKEN = authResponse.content.trim()
+                echo 'Successfully authenticated to Conjur ✓'
+                echo "Token format check - starts with '{': ${env.CONJUR_TOKEN.startsWith('{')}"
+                echo "Token length: ${env.CONJUR_TOKEN.length()}"
             }
         }
     }
 }
-        stage('Retrieve AWS Credentials from Conjur') {
-            steps {
-                script {
-                    echo 'Retrieving AWS credentials from Conjur...'
-                    
-                    // Get AWS Access Key ID
-                    def akResponse = httpRequest(
-                        url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}",
-                        httpMode: 'GET',
-                        customHeaders: [[
-                            name: 'Authorization',
-                            value: "Token token=\"${env.CONJUR_TOKEN}\""
-                        ]],
-                        validResponseCodes: '200',
-                        ignoreSslErrors: true
-                    )
-                    env.AWS_ACCESS_KEY_ID = akResponse.content.trim()
-                    
-                    // Get AWS Secret Access Key
-                    def skResponse = httpRequest(
-                        url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_SECRET_KEY_PATH}",
-                        httpMode: 'GET',
-                        customHeaders: [[
-                            name: 'Authorization',
-                            value: "Token token=\"${env.CONJUR_TOKEN}\""
-                        ]],
-                        validResponseCodes: '200'
-                    )
-                    env.AWS_SECRET_ACCESS_KEY = skResponse.content.trim()
-                    
-                    // Get S3 Bucket Name
-                    def bucketResponse = httpRequest(
-                        url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${BUCKET_NAME_PATH}",
-                        httpMode: 'GET',
-                        customHeaders: [[
-                            name: 'Authorization',
-                            value: "Token token=\"${env.CONJUR_TOKEN}\""
-                        ]],
-                        validResponseCodes: '200'
-                    )
-                    env.S3_BUCKET = bucketResponse.content.trim()
-                    
-                    // Get AWS Region
-                    def regionResponse = httpRequest(
-                        url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${REGION_PATH}",
-                        httpMode: 'GET',
-                        customHeaders: [[
-                            name: 'Authorization',
-                            value: "Token token=\"${env.CONJUR_TOKEN}\""
-                        ]],
-                        validResponseCodes: '200'
-                    )
-                    env.AWS_REGION = regionResponse.content.trim()
-                    
-                    echo 'Successfully retrieved all AWS credentials ✓'
-                }
-            }
+        
+stage('Retrieve AWS Credentials from Conjur') {
+    steps {
+        script {
+            echo 'Retrieving AWS credentials from Conjur...'
+            
+            // Get AWS Access Key ID
+            def akResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.AWS_ACCESS_KEY_ID = akResponse.content.trim()
+            
+            def skResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_SECRET_KEY_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.AWS_SECRET_ACCESS_KEY = skResponse.content.trim()
+            
+            def bucketResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${BUCKET_NAME_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.S3_BUCKET = bucketResponse.content.trim()
+            
+            def regionResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${REGION_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.AWS_REGION = regionResponse.content.trim()
+            
+            echo 'Successfully retrieved all AWS credentials ✓'
         }
+    }
+}
         
         stage('Verify AWS Connection') {
             steps {

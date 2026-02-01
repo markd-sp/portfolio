@@ -33,7 +33,7 @@ pipeline {
                 	echo "Using URL: ${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate"
                 
                         def authResponse = httpRequest(
-                            url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${CONJUR_LOGIN}/authenticate",
+                            url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate",
                             httpMode: 'POST',
                             contentType: 'TEXT_PLAIN',
                             requestBody: API_KEY,

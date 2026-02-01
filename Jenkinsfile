@@ -47,6 +47,20 @@ pipeline {
             }
         }
         
+        stage('Debug Token') {
+    steps {
+        script {
+            echo "=== Token Debug Info ==="
+            echo "Token length: ${env.CONJUR_TOKEN.length()}"
+            echo "Token preview: ${env.CONJUR_TOKEN.take(100)}"
+            
+            // Check if it's JSON
+            if (env.CONJUR_TOKEN.startsWith('{')) {
+                echo "WARNING: Token is in JSON format!"
+            }
+        }
+    }
+}
         stage('Retrieve AWS Credentials from Conjur') {
             steps {
                 script {

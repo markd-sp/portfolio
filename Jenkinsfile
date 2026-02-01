@@ -8,7 +8,7 @@ pipeline {
         CONJUR_LOGIN = 'host/jenkins-hosts/debian-jenkins'          // REPLACE with your host login
         
         // Secret paths in Conjur
-        AWS_ACCESS_KEY_PATH = 'jenkins-app/aws/access-key-id'
+        AWS_ACCESS_KEY_PATH = 'jenkins-app%2Faws%2faccess-key-id'
         AWS_SECRET_KEY_PATH = 'jenkins-app/aws/secret-access-key'
         BUCKET_NAME_PATH = 'jenkins-app/aws/bucket-name'
         REGION_PATH = 'jenkins-app/aws/region'

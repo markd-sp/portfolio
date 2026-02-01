@@ -64,7 +64,7 @@ stage('Retrieve AWS Credentials from Conjur') {
                 url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}",
                 httpMode: 'GET',
                 customHeaders: [[
-                    name: 'Authorization:',
+                    name: 'Authorization',
                     value: "Token token=${env.CONJUR_TOKEN}"
                 ]],
                 validResponseCodes: '200',

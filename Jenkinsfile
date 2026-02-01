@@ -37,7 +37,8 @@ pipeline {
                             httpMode: 'POST',
                             contentType: 'TEXT_PLAIN',
                             requestBody: API_KEY,
-                            validResponseCodes: '200'
+                            validResponseCodes: '200',
+                            ignoreSslErrors: true
                         )
                         env.CONJUR_TOKEN = authResponse.content
                         echo 'Successfully authenticated to Conjur ✓'
@@ -59,7 +60,8 @@ pipeline {
                             name: 'Authorization',
                             value: "Token token=\"${env.CONJUR_TOKEN}\""
                         ]],
-                        validResponseCodes: '200'
+                        validResponseCodes: '200',
+                        ignoreSslErrors: true
                     )
                     env.AWS_ACCESS_KEY_ID = akResponse.content.trim()
                     

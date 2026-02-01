@@ -2,10 +2,12 @@ pipeline {
     agent any
     
     environment {
-        CONJUR_URL = 'https://conjursecrets:8443'
-        CONJUR_ACCOUNT = 'myConjurAccount'
-        CONJUR_LOGIN = 'host/jenkins-hosts/debian-jenkins'
+        // Conjur configuration
+        CONJUR_URL = 'https://conjursecrets:8443'  // REPLACE with your Conjur URL
+        CONJUR_ACCOUNT = 'myConjurAccount'                    // REPLACE with your account
+        CONJUR_LOGIN = 'host/jenkins-hosts/debian-jenkins'          // REPLACE with your host login
         
+        // Secret paths in Conjur
         AWS_ACCESS_KEY_PATH = 'jenkins-app/aws/access-key-id'
         AWS_SECRET_KEY_PATH = 'jenkins-app/aws/secret-access-key'
         BUCKET_NAME_PATH = 'jenkins-app/aws/bucket-name'
@@ -20,52 +22,96 @@ pipeline {
             }
         }
         
-        stage('Retrieve AWS Credentials from Conjur via REST') {
-            steps {
-                script {
-                    echo 'Retrieving AWS credentials from Conjur...'
-                    
-                    withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
-                        // Use curl with Basic Auth (API key as password)
-                        def login = env.CONJUR_LOGIN
-                        
-                        env.AWS_ACCESS_KEY_ID = sh(
-                            script: """
-                                curl -k -s -u '${login}:\${API_KEY}' \
-                                  '${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}'
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        env.AWS_SECRET_ACCESS_KEY = sh(
-                            script: """
-                                curl -k -s -u '${login}:\${API_KEY}' \
-                                  '${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_SECRET_KEY_PATH}'
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        env.S3_BUCKET = sh(
-                            script: """
-                                curl -k -s -u '${login}:\${API_KEY}' \
-                                  '${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${BUCKET_NAME_PATH}'
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        env.AWS_REGION = sh(
-                            script: """
-                                curl -k -s -u '${login}:\${API_KEY}' \
-                                  '${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${REGION_PATH}'
-                            """,
-                            returnStdout: true
-                        ).trim()
-                        
-                        echo 'Successfully retrieved all AWS credentials ✓'
-                    }
-                }
+stage('Authenticate to Conjur') {
+    steps {
+        script {
+            echo 'Authenticating to Conjur...'
+            withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
+                def encodedLogin = CONJUR_LOGIN.replace('/', '%2F')
+                
+                echo "Using URL: ${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate"
+                
+                // Use curl to get token with base64 encoding
+                def token = sh(
+                    script: """
+                        curl -k -X POST \
+                          '${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate' \
+                          -H 'Content-Type: text/plain' \
+                          -H 'Accept-Encoding: base64' \
+                          --data "\${API_KEY}" \
+                          -s
+                    """,
+                    returnStdout: true
+                ).trim()
+                
+                env.CONJUR_TOKEN = token
+                
+                echo 'Successfully authenticated to Conjur ✓'
+                echo "Token format check - starts with '{': ${env.CONJUR_TOKEN.startsWith('{')}"
+                echo "Token length: ${env.CONJUR_TOKEN.length()}"
             }
         }
+    }
+}
+        
+stage('Retrieve AWS Credentials from Conjur') {
+    steps {
+        script {
+            echo 'Retrieving AWS credentials from Conjur...'
+            
+            // Get AWS Access Key ID
+            def akResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.AWS_ACCESS_KEY_ID = akResponse.content.trim()
+            
+            def skResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_SECRET_KEY_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.AWS_SECRET_ACCESS_KEY = skResponse.content.trim()
+            
+            def bucketResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${BUCKET_NAME_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.S3_BUCKET = bucketResponse.content.trim()
+            
+            def regionResponse = httpRequest(
+                url: "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${REGION_PATH}",
+                httpMode: 'GET',
+                customHeaders: [[
+                    name: 'Authorization',
+                    value: "Token token=${env.CONJUR_TOKEN}"
+                ]],
+                validResponseCodes: '200',
+                ignoreSslErrors: true
+            )
+            env.AWS_REGION = regionResponse.content.trim()
+            
+            echo 'Successfully retrieved all AWS credentials ✓'
+        }
+    }
+}
         
         stage('Verify AWS Connection') {
             steps {
@@ -76,7 +122,10 @@ pipeline {
                         export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
                         export AWS_DEFAULT_REGION="${AWS_REGION}"
                         
+                        # Verify credentials work
                         aws sts get-caller-identity
+                        
+                        # Verify bucket exists
                         aws s3 ls s3://${S3_BUCKET}
                     '''
                     echo 'AWS connection verified ✓'
@@ -93,6 +142,7 @@ pipeline {
                         export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
                         export AWS_DEFAULT_REGION="${AWS_REGION}"
                         
+                        # Sync website files to S3
                         aws s3 sync . s3://${S3_BUCKET}/ \
                             --exclude ".git/*" \
                             --exclude "Jenkinsfile" \
@@ -113,6 +163,8 @@ pipeline {
         always {
             script {
                 echo 'Cleaning up sensitive data...'
+                // Clear all sensitive environment variables
+                env.CONJUR_TOKEN = ''
                 env.AWS_ACCESS_KEY_ID = ''
                 env.AWS_SECRET_ACCESS_KEY = ''
                 env.S3_BUCKET = ''
@@ -122,9 +174,10 @@ pipeline {
         }
         success {
             echo '🎉 Deployment succeeded!'
+            echo 'Visit your website at the URL shown above.'
         }
         failure {
-            echo '❌ Deployment failed.'
+            echo '❌ Deployment failed. Check the console output for errors.'
         }
     }
 }

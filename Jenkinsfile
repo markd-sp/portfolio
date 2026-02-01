@@ -114,10 +114,12 @@ stage('Retrieve AWS Credentials from Conjur') {
                 script {
                     echo 'Testing AWS connection...'
                     sh '''
+			set +x  # Disable command echoing
                         export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
                         export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
                         export AWS_DEFAULT_REGION="${AWS_REGION}"
                         
+                        set +x  # Disable command echoing
                         aws sts get-caller-identity
                         aws s3 ls s3://${S3_BUCKET}
                     '''
@@ -131,10 +133,12 @@ stage('Retrieve AWS Credentials from Conjur') {
                 script {
                     echo 'Deploying website to S3...'
                     sh '''
+                        set +x  # Disable command echoing
                         export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
                         export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
                         export AWS_DEFAULT_REGION="${AWS_REGION}"
                         
+                        set +x  # Disable command echoing
                         # Sync website files to S3
                         aws s3 sync . s3://${S3_BUCKET}/ \
                             --exclude ".git/*" \

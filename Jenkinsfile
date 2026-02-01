@@ -118,29 +118,29 @@ pipeline {
         }
         
         stage('Deploy to S3') {
-            steps {
-                script {
-                    echo 'Deploying website to S3...'
-                    sh '''
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_DEFAULT_REGION="${AWS_REGION}"
-                        
-                        aws s3 sync . s3/${S3_BUCKET}/ \
-                            --exclude ".git/*" \
-                            --exclude "Jenkinsfile" \
-                            --exclude "README.md" \
-                            --delete \
-                            --cache-control "max-age=3600"
-                        
-                        echo "Deployment complete!"
-                        echo "Website URL: http://${S3_BUCKET}.s3-website-${AWS_REGION}.amazonaws.com"
-                    '''
-                    echo 'Successfully deployed to S3 ✓'
-                }
-            }
+    steps {
+        script {
+            echo 'Deploying website to S3...'
+            sh '''
+                export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                export AWS_DEFAULT_REGION="${AWS_REGION}"
+                
+                # Sync website files to S3
+                aws s3 sync . s3://${S3_BUCKET}/ \
+                    --exclude ".git/*" \
+                    --exclude "Jenkinsfile" \
+                    --exclude "README.md" \
+                    --delete \
+                    --cache-control "max-age=3600"
+                
+                echo "Deployment complete!"
+                echo "Website URL: http://${S3_BUCKET}.s3-website-${AWS_REGION}.amazonaws.com"
+            '''
+            echo 'Successfully deployed to S3 ✓'
         }
     }
+}
     
     post {
         always {

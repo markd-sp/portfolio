@@ -31,19 +31,21 @@ stage('Authenticate to Conjur') {
                 
                 echo "Using URL: ${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate"
                 
-                def authResponse = httpRequest(
-                    url: "${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate",
-                    httpMode: 'POST',
-                    contentType: 'TEXT_PLAIN',
-                    customHeaders: [[
-                        name: 'Accept-Encoding',
-                        value: 'base64'  // Request base64 token instead of JSON
-                    ]],
-                    requestBody: API_KEY,
-                    validResponseCodes: '200',
-                    ignoreSslErrors: true
-                )
-                env.CONJUR_TOKEN = authResponse.content.trim()
+                // Use curl to get token with base64 encoding
+                def token = sh(
+                    script: """
+                        curl -k -X POST \
+                          '${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate' \
+                          -H 'Content-Type: text/plain' \
+                          -H 'Accept-Encoding: base64' \
+                          --data "\${API_KEY}" \
+                          -s
+                    """,
+                    returnStdout: true
+                ).trim()
+                
+                env.CONJUR_TOKEN = token
+                
                 echo 'Successfully authenticated to Conjur ✓'
                 echo "Token format check - starts with '{': ${env.CONJUR_TOKEN.startsWith('{')}"
                 echo "Token length: ${env.CONJUR_TOKEN.length()}"

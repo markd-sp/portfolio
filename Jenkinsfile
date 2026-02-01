@@ -39,7 +39,7 @@ stage('Authenticate to Conjur') {
                           -H 'Content-Type: text/plain' \
                           -H 'Accept-Encoding: base64' \
                           --data "\${API_KEY}" \
-                          -s
+                          -s > /tmp/conjur_token.txt
                     """,
                     returnStdout: true
                 ).trim()

@@ -45,84 +45,86 @@ pipeline {
             }
         }
         
-        stage('Retrieve AWS Credentials from Conjur') {
-            steps {
-                script {
-                    echo 'Retrieving AWS credentials from Conjur...'
-                    
-                    // Get AWS Access Key ID
-                    env.AWS_ACCESS_KEY_ID = sh(
-                        script: """
-                            curl -s -k \
-                              -H "Content-Type: application/json" \
-                              -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
-                              "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}"
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    // Get AWS Secret Access Key
-                    env.AWS_SECRET_ACCESS_KEY = sh(
-                        script: """
-                            curl -s -k \
-                              -H "Content-Type: application/json" \
-                              -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
-                              "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_SECRET_KEY_PATH}"
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    // Get S3 Bucket Name
-                    env.S3_BUCKET = sh(
-                        script: """
-                            curl -s -k \
-                              -H "Content-Type: application/json" \
-                              -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
-                              "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${BUCKET_NAME_PATH}"
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    // Get AWS Region
-                    env.AWS_REGION = sh(
-                        script: """
-                            curl -s -k \
-                              -H "Content-Type: application/json" \
-                              -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
-                              "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${REGION_PATH}"
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    echo 'Successfully retrieved all AWS credentials ✓'
-                }
-            }
-        }
-        
-        stage('Verify AWS Connection') {
-        steps {
+stage('Retrieve AWS Credentials from Conjur') {
+    steps {
         script {
-            echo 'Testing AWS connection...'
+            echo 'Retrieving AWS credentials from Conjur...'
             
-            // Wrap in credentials to mask output
-            wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [
-                [var: 'AWS_ACCESS_KEY_ID', password: env.AWS_ACCESS_KEY_ID],
-                [var: 'AWS_SECRET_ACCESS_KEY', password: env.AWS_SECRET_ACCESS_KEY]
-            ]]) {
-                sh '''
-                    export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                    export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                    export AWS_DEFAULT_REGION="${AWS_REGION}"
-                    
-                    aws sts get-caller-identity
-                    aws s3 ls s3://${S3_BUCKET}
-                '''
-            }
+            // Get AWS Access Key ID
+            env.AWS_ACCESS_KEY_ID = sh(
+                script: """
+                    curl -s -k \
+                      -H "Content-Type: application/json" \
+                      -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
+                      "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_ACCESS_KEY_PATH}"
+                """,
+                returnStdout: true
+            ).trim()
             
-            echo 'AWS connection verified ✓'
+            // DON'T echo the actual value
+            echo "AWS Access Key retrieved (length: ${env.AWS_ACCESS_KEY_ID.length()})"
+            
+            // Get AWS Secret Access Key
+            env.AWS_SECRET_ACCESS_KEY = sh(
+                script: """
+                    curl -s -k \
+                      -H "Content-Type: application/json" \
+                      -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
+                      "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${AWS_SECRET_KEY_PATH}"
+                """,
+                returnStdout: true
+            ).trim()
+            
+            echo "AWS Secret Key retrieved (length: ${env.AWS_SECRET_ACCESS_KEY.length()})"
+            
+            // Get S3 Bucket Name
+            env.S3_BUCKET = sh(
+                script: """
+                    curl -s -k \
+                      -H "Content-Type: application/json" \
+                      -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
+                      "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${BUCKET_NAME_PATH}"
+                """,
+                returnStdout: true
+            ).trim()
+            
+            echo "S3 Bucket retrieved: ${env.S3_BUCKET}"
+            
+            // Get AWS Region
+            env.AWS_REGION = sh(
+                script: """
+                    curl -s -k \
+                      -H "Content-Type: application/json" \
+                      -H "Authorization: Token token=\\"${env.CONJUR_TOKEN}\\"" \
+                      "${CONJUR_URL}/secrets/${CONJUR_ACCOUNT}/variable/${REGION_PATH}"
+                """,
+                returnStdout: true
+            ).trim()
+            
+            echo "AWS Region retrieved: ${env.AWS_REGION}"
+            
+            echo 'Successfully retrieved all AWS credentials ✓'
         }
     }
 }
+        
+        
+        stage('Verify AWS Connection') {
+            steps {
+                script {
+                    echo 'Testing AWS connection...'
+                    sh '''
+                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                        export AWS_DEFAULT_REGION="${AWS_REGION}"
+                        
+                        aws sts get-caller-identity
+                        aws s3 ls s3://${S3_BUCKET}
+                    '''
+                    echo 'AWS connection verified ✓'
+                }
+            }
+        }
         
         stage('Deploy to S3') {
             steps {

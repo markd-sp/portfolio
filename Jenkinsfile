@@ -40,7 +40,6 @@ pipeline {
                         ).trim()
                         
                         echo 'Successfully authenticated to Conjur ✓'
-                        echo "Token length: ${env.CONJUR_TOKEN.length()}"
                     }
                 }
             }
@@ -101,21 +100,29 @@ pipeline {
         }
         
         stage('Verify AWS Connection') {
-            steps {
-                script {
-                    echo 'Testing AWS connection...'
-                    sh '''
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_DEFAULT_REGION="${AWS_REGION}"
-                        
-                        aws sts get-caller-identity
-                        aws s3 ls s3://${S3_BUCKET}
-                    '''
-                    echo 'AWS connection verified ✓'
-                }
+        steps {
+        script {
+            echo 'Testing AWS connection...'
+            
+            // Wrap in credentials to mask output
+            wrap([$class: 'MaskPasswordsBuildWrapper', varPasswordPairs: [
+                [var: 'AWS_ACCESS_KEY_ID', password: env.AWS_ACCESS_KEY_ID],
+                [var: 'AWS_SECRET_ACCESS_KEY', password: env.AWS_SECRET_ACCESS_KEY]
+            ]]) {
+                sh '''
+                    export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                    export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                    export AWS_DEFAULT_REGION="${AWS_REGION}"
+                    
+                    aws sts get-caller-identity
+                    aws s3 ls s3://${S3_BUCKET}
+                '''
             }
+            
+            echo 'AWS connection verified ✓'
         }
+    }
+}
         
         stage('Deploy to S3') {
             steps {

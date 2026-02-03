@@ -108,7 +108,6 @@ stage('Retrieve AWS Credentials from Conjur') {
     }
 }
         
-        
         stage('Verify AWS Connection') {
             steps {
                 script {

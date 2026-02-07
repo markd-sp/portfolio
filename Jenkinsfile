@@ -24,7 +24,7 @@ pipeline {
             steps {
                 script {
                     echo 'Authenticating to Conjur using REST API...'
-                    withCredentials([string(credentialsId: 'conjur-api-key', variable: 'API_KEY')]) {
+                    withCredentials([string(credentialsId: 'conjursecrets-api-key', variable: 'API_KEY')]) {
                         def encodedLogin = CONJUR_LOGIN.replace('/', '%2F')
                         
                         echo "Using URL: ${CONJUR_URL}/authn/${CONJUR_ACCOUNT}/${encodedLogin}/authenticate"
